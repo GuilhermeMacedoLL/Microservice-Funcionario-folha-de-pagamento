@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,6 +24,7 @@ import com.funcionarioms.funcionario.mapper.FuncionarioMapper;
 import com.funcionarioms.funcionario.service.FuncionarioService;
 import com.funcionarioms.funcionario.util.MediaType;
 
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -57,19 +59,20 @@ public class FuncionarioController {
 	public ResponseEntity<FuncionarioDTO> getHistoricoPedido(@PathVariable String cpf) {
 
 		FuncionarioDTO dto = mapper.convertEntityToDto(service.getByCpf(cpf));
-		
+
 		Double salario = 0.00;
-		
+
 		if (cpf != null) {
 			String url = "http://localhost:8081/folha/consulta/salarioFuncionario/" + cpf;
 
 			try {
-				
+
 				ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, null, String.class);
 				if (response.getBody() != null) {
 					ObjectMapper objectMapper = new ObjectMapper();
-					FolhaPagamentoDTO[] listPagamento = objectMapper.readValue(response.getBody(), FolhaPagamentoDTO[].class);
-					for(FolhaPagamentoDTO folha : listPagamento) {
+					FolhaPagamentoDTO[] listPagamento = objectMapper.readValue(response.getBody(),
+							FolhaPagamentoDTO[].class);
+					for (FolhaPagamentoDTO folha : listPagamento) {
 						salario = salario + Double.parseDouble(folha.getSalario().replace(".", "").replace(",", "."));
 					}
 					dto.setSalario(salario.toString());
@@ -112,10 +115,17 @@ public class FuncionarioController {
 		return new ResponseEntity<FuncionarioDTO>(dto, HttpStatus.NO_CONTENT);
 	}
 
-	@SuppressWarnings("rawtypes")
-	@GetMapping(value = "/excluir/{id}")
-	public ResponseEntity delete(@PathVariable Long id) {
-		service.delete(id);
-		return new ResponseEntity(HttpStatus.NO_CONTENT);
+	@DeleteMapping(value = "/excluir/{id}")
+	public ResponseEntity<?> delete(@PathVariable Long id) {
+		try {
+			service.delete(id);
+			return ResponseEntity.noContent().build();
+		} catch (EntityNotFoundException e) {
+			return ResponseEntity.notFound().build();
+		} catch (Exception e) {
+			log.error("Erro ao excluir funcionario com id: " + id, e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body("Erro ao excluir funcionario: " + e.getMessage());
+		}
 	}
 }
